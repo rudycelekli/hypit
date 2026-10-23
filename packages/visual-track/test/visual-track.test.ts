@@ -252,6 +252,22 @@ test("a Clip keeps ordered Paint/sample layers, two-frame fit and frame treatmen
   ]);
 });
 
+test("Clips sharing one Window become separate Presents", () => {
+  // A background and an overlay both `during={program.window}`: the second Clip used to be
+  // refused because each Present took its Window's id.
+  const shared = projectProgramWindow({ itemId: "program", semantic, projection: defaultClipProjection });
+  const { projection: _background, ...background } = clipSpec({ id: "background", z: 0 });
+  const { projection: _logo, ...logo } = clipSpec({ id: "logo", z: 10 });
+  let set = appendVisualClip(createVisualTrackSet(), header, space, stillLayers(), frame, background, shared);
+  set = appendVisualClip(set, header, space, stillLayers(), frame, logo, shared);
+  const track = projectVisualTrack(space, finalizeVisualTrack(set, header, space));
+  assert.deepEqual(track.presents.map((present) => [present.id, present.subjectId, present.span]), [
+    ["background", "background", { startFrame: 0, endFrameExclusive: 120 }],
+    ["logo", "logo", { startFrame: 0, endFrameExclusive: 120 }],
+  ]);
+  assert.equal(track.presents[1]?.elements[0]?.id, "logo:placement");
+});
+
 test("an owned clip path is an explicit Visual input and lowers only over the Clip's pixels", () => {
   // A Path is drawn in program-picture pixels. The Frame
   // sits at 100,200, so a trapezoid filling it is written from there and arrives at the Frame's own

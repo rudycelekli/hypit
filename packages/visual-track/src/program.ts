@@ -100,7 +100,9 @@ export function appendVisualClip(
     poseAnimation(spec.motion, duration);
   }
   const addition: VisualClipProgram = {
-    id: window.id,
+    // A Window may be shared by several Clips (a background and an overlay over one program
+    // Window), so the Present is named by its Clip, not by its Window.
+    id: spec.id,
     subjectId: spec.id,
     span: { ...window.span },
     frame: { ...frame },

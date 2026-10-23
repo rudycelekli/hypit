@@ -6,6 +6,7 @@ import type {
   StudioInspectorFieldDeclaration,
   StudioMaterialPreview,
   StudioSourceBindingDeclaration,
+  StudioTemporalLineage,
 } from "@hypit/studio-companion";
 import { artifactPreview, authoredItemTitle, childItems, previewLayer, requiredSurfaceValue, temporalLineageFor, temporalDomainSource } from "@hypit/studio-companion";
 import { visualTreatmentDefaults } from "./author.js";
@@ -135,6 +136,17 @@ function materialPreview(
   return artifactPreview(layer.source.kind === "still" ? "image" : "video", layer.source.artifact.resource);
 }
 
+/** The Window consumed by the append step of this Clip; one Window may feed several Clips. */
+function clipWindowLineage(context: StudioTrackCompanionContext, subjectId: string): StudioTemporalLineage | undefined {
+  const found = context.temporalBindings.filter((binding) => binding.consumers.some((consumer) =>
+    consumer.role === "domain" && consumer.input === "window"
+    && consumer.inputs.some((input) => input.name === "spec"
+      && (input.value as { readonly id?: unknown } | undefined)?.id === subjectId)));
+  if (found.length > 1) throw new Error(`Studio Temporal lineage is ambiguous for ${subjectId} at window.`);
+  const binding = found[0];
+  return binding === undefined ? undefined : { record: binding.record, projection: binding.projection };
+}
+
 function projectVisualItems(context: StudioTrackCompanionContext): readonly StudioItemDraft[] {
   const program = requiredSurfaceValue(context, "program") as VisualTrackProgram;
   const clips = program.clips.map((clip) => ({
@@ -151,7 +163,7 @@ function projectVisualItems(context: StudioTrackCompanionContext): readonly Stud
     .map((projected, index) => {
       const clip = clips[index];
       if (clip === undefined) return projected;
-      const temporal = temporalLineageFor(context, clip.id, clip.temporalInput);
+      const temporal = clipWindowLineage(context, clip.subjectId) ?? temporalLineageFor(context, clip.id, clip.temporalInput);
       const semanticSource = temporalDomainSource(temporal);
       return {
         ...projected,
