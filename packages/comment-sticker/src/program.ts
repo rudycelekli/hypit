@@ -308,7 +308,7 @@ function motionAnimation(style: CommentStickerStyle, duration: number): VisualAn
         : Math.max(0, Math.min(1, enterProgress));
       const exit = style.motion.exit;
       const exitProgress = exitDuration === 0 ? 0 : motionProgress((atFrame - exitStart) / exitDuration, exit.easing);
-      const holdActive = style.motion.hold.kind === "float" && atFrame >= enterDuration && atFrame <= exitStart;
+      const holdActive = style.motion.hold.kind === "float" && atFrame >= enterDuration;
       const holdPhase = holdActive ? (atFrame - enterDuration) / style.motion.hold.periodFrames * Math.PI * 2 : 0;
       const holdY = holdActive ? Math.sin(holdPhase) * style.motion.hold.amplitudeYPx : 0;
       const holdRotation = holdActive ? Math.sin(holdPhase) * style.motion.hold.rotationAmplitudeDeg : 0;

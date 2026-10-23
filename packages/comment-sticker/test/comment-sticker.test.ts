@@ -132,6 +132,23 @@ test("short Sticker windows compose overlapping enter and exit motion instead of
   assert.ok((opacity as number) > 0 && (opacity as number) < 1);
 });
 
+test("the default float carries through the exit instead of snapping back", () => {
+  // The float only applied up to the exit's first frame, so the card jumped ~2.9px and ~0.26deg
+  // there while still fully opaque.
+  const animation = track().presents[0]?.elements.find((element) => element.animation !== undefined)?.animation;
+  assert.ok(animation);
+  const exitStart = 90 - style.motion.exit.durationFrames;
+  const pose = (frame: number) => {
+    const value = animation.keyframes.find((keyframe) => keyframe.atFrame === frame)!
+      .style.find((declaration) => declaration.name === "transform")!.value as string;
+    const [, y, rotation] = /translate3d\(0px,(-?[\d.]+)px,0\) rotate\((-?[\d.]+)deg\)/u.exec(value)!;
+    return { y: Number(y), rotation: Number(rotation) };
+  };
+  const [held, exiting] = [pose(exitStart), pose(exitStart + 1)];
+  assert.ok(Math.abs(exiting.y - held.y) < 0.5, `y ${held.y} -> ${exiting.y}`);
+  assert.ok(Math.abs(exiting.rotation - held.rotation) < 0.05, `rotation ${held.rotation} -> ${exiting.rotation}`);
+});
+
 function parsed(source: string) {
   return parseStructuredElement({ name: "fixture.svml", text: source }, 0).element;
 }
