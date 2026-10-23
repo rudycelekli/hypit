@@ -211,7 +211,8 @@ function realized(
   assertCommentStickerContent(content);
   if (avatar !== undefined) assertAvatar(avatar);
   const addition: CommentStickerItemProgram = {
-    id: window.id,
+    // Several Stickers may share one Window, so each Present is named by its Item, not its Window.
+    id: spec.id,
     subjectId: spec.id,
     span: { ...window.span },
     frame: structuredClone(frame),

@@ -33,6 +33,8 @@ import {
   sealCommentStickerItemSpec,
   setCommentStickerContentText,
 } from "../src/index.js";
+import { commentStickerStudioTrackCompanions } from "../src/studio.js";
+import type { StudioTrackCompanionContext } from "@hypit/studio-companion";
 
 const font: FontArtifactRef = {
   sources: [{ artifact: { kind: "blob", resource: fixtureResource("comment-sticker-font"), size: 1_024, mediaType: "font/woff2" } }],
@@ -130,6 +132,37 @@ test("short Sticker windows compose overlapping enter and exit motion instead of
   const opacity = overlap.style.find((declaration) => declaration.name === "opacity")?.value;
   assert.equal(typeof opacity, "number");
   assert.ok((opacity as number) > 0 && (opacity as number) < 1);
+});
+
+test("Stickers sharing one Window become separate Presents and keep their Window lineage", () => {
+  // Two comments shown together over one Window. Each Present used to take its Window's id, so
+  // the second Sticker was refused as a duplicate.
+  const shared = projectProgramWindow({ itemId: "together", semantic,
+    projection: { start: { ref: "timeline.start" }, end: { ref: "timeline.end" } } });
+  let set = appendProjectedCommentSticker(createCommentStickerSet(), header, space, frame, style, item("first"), content(), shared);
+  set = appendProjectedCommentSticker(set, header, space, frame, style, item("second"), content(), shared);
+  const program = finalizeCommentSticker(set, header);
+  const rendered = renderCommentSticker(space, program);
+  assert.deepEqual(rendered.presents.map((present) => [present.id, present.subjectId]), [["first", "first"], ["second", "second"]]);
+
+  // Studio finds each Sticker's Window through the spec its append step consumed.
+  const endpoint = (at: number) => ({ kind: "instant", frame: at, authority: { kind: "fixed" } });
+  const consumer = (id: string) => ({ step: `append-${id}`, producer: { module: { name: "@hypit/comment-sticker", version: "1" }, name: "append-item" },
+    input: "window", role: "domain", inputs: [{ name: "spec", record: `spec-${id}`, type: commentStickerTypes.itemSpec, value: { id } }] });
+  const context = {
+    track: { outputRef: "comments.visual", type: { module: { name: "@hypit/composition", version: "1" }, name: "VisualTrack" },
+      trace: { references: [], outputPorts: [{ name: "program", ref: "program" }] } },
+    values: new Map<string, unknown>([["program", program]]),
+    spans: [],
+    temporalBindings: [{ record: "together-window", subjectId: "together", id: "together",
+      projection: { kind: "window", start: endpoint(0), end: endpoint(90), startFrame: 0, endFrameExclusive: 90 },
+      consumers: [consumer("first"), consumer("second")] }],
+    temporalDomains: [],
+  } as unknown as StudioTrackCompanionContext;
+  const items = commentStickerStudioTrackCompanions[0]!.project!(context);
+  assert.deepEqual(items.map((projected) => [projected.authoredId, projected.temporal?.record]), [
+    ["first", "together-window"], ["second", "together-window"],
+  ]);
 });
 
 function parsed(source: string) {

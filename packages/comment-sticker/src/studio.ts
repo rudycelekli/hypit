@@ -1,7 +1,7 @@
 import { commentStickerMarkupSurfaces, commentStickerModuleRef, commentStickerTypes } from "./index.js";
 import type { CommentStickerProgram } from "./index.js";
 import { compositionTypes } from "@hypit/composition";
-import type { StudioTrackCompanion, StudioTrackCompanionContext, StudioItemDraft, StudioInspectorFieldDeclaration, StudioSourceBindingDeclaration } from "@hypit/studio-companion";
+import type { StudioTrackCompanion, StudioTrackCompanionContext, StudioItemDraft, StudioInspectorFieldDeclaration, StudioSourceBindingDeclaration, StudioTemporalLineage } from "@hypit/studio-companion";
 import { artifactPreview, childItems, previewLayer, requiredSurfaceValue, temporalLineageFor, temporalDomainSource, textLayer } from "@hypit/studio-companion";
 
 const frameParameters: readonly StudioSourceBindingDeclaration[] = [
@@ -68,6 +68,17 @@ const commentInspector: readonly StudioInspectorFieldDeclaration[] = commentProp
   };
 });
 
+/** The Window consumed by the append step of this Item; one Window may feed several Items. */
+function itemWindowLineage(context: StudioTrackCompanionContext, subjectId: string): StudioTemporalLineage | undefined {
+  const found = context.temporalBindings.filter((binding) => binding.consumers.some((consumer) =>
+    consumer.role === "domain" && consumer.input === "window"
+    && consumer.inputs.some((input) => input.name === "spec"
+      && (input.value as { readonly id?: unknown } | undefined)?.id === subjectId)));
+  if (found.length > 1) throw new Error(`Studio Temporal lineage is ambiguous for ${subjectId} at window.`);
+  const binding = found[0];
+  return binding === undefined ? undefined : { record: binding.record, projection: binding.projection };
+}
+
 function projectComments(context: StudioTrackCompanionContext): readonly StudioItemDraft[] {
   const program = requiredSurfaceValue(context, "program") as CommentStickerProgram;
   const items = program.items.map((item) => ({
@@ -81,7 +92,7 @@ function projectComments(context: StudioTrackCompanionContext): readonly StudioI
   return childItems(context, items, "comment-sticker", "standard").map((projected, index) => {
     const item = program.items[index];
     if (item === undefined) return projected;
-    const temporal = temporalLineageFor(context, item.id, "window");
+    const temporal = itemWindowLineage(context, item.subjectId) ?? temporalLineageFor(context, item.id, "window");
     const semanticSource = temporalDomainSource(temporal);
     return {
       ...projected,
